@@ -1,7 +1,6 @@
 pandas
 numpy
 scikit-learn>=1.1
-prince
-category-encoders
+scipy
 streamlit
 matplotlib
