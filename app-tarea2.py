@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-# Garantiza que el dir del archivo esté en sys.path (Streamlit Cloud friendly)
+# Asegura que el dir del archivo esté en sys.path (Streamlit Cloud friendly)
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -12,20 +12,20 @@ import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 
-from data_loading import load_diabetic_and_ids
+from data_loading import load_diabetic_and_ids  # (no usado para merge UI, pero disponible)
 from preprocessing import apply_preprocessor
 from feature_selection import select_numeric_features, select_categorical_features
 from dimensionality import pca_reduce, mca_reduce
 from utils import split_num_cat
 
-# ... (resto igual al que ya tienes; en el ZIP está completo)
-
-
 st.set_page_config(page_title="Tarea 2 - Selección + PCA/MCA", layout="wide")
 
-st.title("Tarea 2 — Selección de Variables + PCA/MCA")
+st.title("Tarea 2 — Selección de Variables + PCA/MCA (Flat)")
 st.caption("Dataset: diabetic_data.csv + IDS_mapping.csv")
 
+# =========================
+# BARRA LATERAL: PARÁMETROS
+# =========================
 with st.sidebar:
     st.header("Parámetros")
     sel_threshold = st.slider("Umbral acumulado selección (ANOVA/χ²)", 0.5, 0.99, 0.80, 0.01)
@@ -35,7 +35,9 @@ with st.sidebar:
     diabetic_file = st.file_uploader("diabetic_data.csv", type=["csv"])
     ids_file = st.file_uploader("IDS_mapping.csv", type=["csv"])
 
-# Carga por defecto desde carpeta data/
+# =========================
+# CARGA DE DATOS
+# =========================
 default_diabetic = os.path.join("data", "diabetic_data.csv")
 default_ids = os.path.join("data", "IDS_mapping.csv")
 
@@ -57,41 +59,93 @@ if ids_df is None:
     st.warning("Sube `IDS_mapping.csv` o colócalo en `data/IDS_mapping.csv`.")
     st.stop()
 
-# Merge (heurística por columnas con 'id')
-df = diabetic_df.merge(
-        ids_df,
-        how="left",
-        left_on=[c for c in diabetic_df.columns if 'id' in c.lower()][0] if any('id' in c.lower() for c in diabetic_df.columns) else None,
-        right_on=[c for c in ids_df.columns if 'id' in c.lower()][0] if any('id' in c.lower() for c in ids_df.columns) else None
-    ) if any('id' in c.lower() for c in diabetic_df.columns) and any('id' in c.lower() for c in ids_df.columns) else diabetic_df
+# =========================
+# UI PARA MERGE ROBUSTO
+# =========================
+st.sidebar.markdown("---")
+st.sidebar.subheader("Emparejar IDs (merge)")
+
+def _candidates(cols):
+    cands = [c for c in cols if 'id' in c.lower()]
+    preferred = ["encounter_id", "patient_nbr", "admission_type_id", "discharge_disposition_id", "admission_source_id"]
+    for p in preferred:
+        if p in cols and p not in cands:
+            cands.append(p)
+    # si no hay sugerencias, lista todas
+    return cands or list(cols)
+
+left_key = st.sidebar.selectbox("Columna en diabetic_data", _candidates(diabetic_df.columns), index=0)
+right_key = st.sidebar.selectbox("Columna en IDS_mapping", _candidates(ids_df.columns), index=0)
+
+coerce_to_str = st.sidebar.checkbox("Forzar llaves a texto antes del merge", value=True)
+join_type = st.sidebar.selectbox("Tipo de join", ["left", "inner", "right", "outer"], index=0)
+
+df = diabetic_df.copy()
+if left_key and right_key:
+    LKEY = "__merge_left_key__"
+    RKEY = "__merge_right_key__"
+    if coerce_to_str:
+        df[LKEY] = df[left_key].astype(str)
+        ids_df[RKEY] = ids_df[right_key].astype(str)
+    else:
+        df[LKEY] = df[left_key]
+        ids_df[RKEY] = ids_df[right_key]
+    try:
+        df = df.merge(ids_df, how=join_type, left_on=LKEY, right_on=RKEY)
+    except Exception as e:
+        st.error(f"Error al hacer el merge: {e}")
+        st.stop()
+    finally:
+        # Limpieza de columnas auxiliares si existen
+        if LKEY in df.columns:
+            try:
+                df.drop(columns=[LKEY], inplace=True)
+            except Exception:
+                pass
 
 st.subheader("Vista previa")
 st.dataframe(df.head(20))
 
-# Target
-candidate_targets = [c for c in df.columns if c.lower() in ["readmitted","outcome","target","label"]]
+# =========================
+# SELECCIÓN DE TARGET
+# =========================
+candidate_targets = [c for c in df.columns if c.lower() in ["readmitted", "outcome", "target", "label"]]
 target_col = st.selectbox("Selecciona la columna objetivo (y)", candidate_targets or df.columns.tolist(), index=0)
+
+if target_col not in df.columns:
+    st.error("La columna objetivo seleccionada no existe en el DataFrame.")
+    st.stop()
 
 y = df[target_col]
 X = df.drop(columns=[target_col])
 
+# =========================
+# DIVISIÓN NUM/CAT
+# =========================
 num_cols, cat_cols = split_num_cat(X)
 st.write(f"Variables numéricas: {len(num_cols)} | Variables categóricas: {len(cat_cols)}")
 
-# Preprocesamiento
+# =========================
+# PREPROCESAMIENTO
+# =========================
 X_num_scaled, X_cat_ohe, num_names, cat_ohe_names, scaler, ohe = apply_preprocessor(X, num_cols, cat_cols)
 
-# Selección
+# =========================
+# SELECCIÓN DE VARIABLES
+# =========================
 num_idx, num_scores = select_numeric_features(X_num_scaled, y, threshold=sel_threshold)
 cat_idx, cat_scores = select_categorical_features(X_cat_ohe, y, threshold=sel_threshold)
 
-X_num_sel = X_num_scaled[:, num_idx] if X_num_scaled.shape[1] else np.empty((len(X),0))
-X_cat_sel = X_cat_ohe[:, cat_idx] if X_cat_ohe.shape[1] else np.empty((len(X),0))
+X_num_sel = X_num_scaled[:, num_idx] if X_num_scaled.shape[1] else np.empty((len(X), 0))
+X_cat_sel = X_cat_ohe[:, cat_idx] if X_cat_ohe.shape[1] else np.empty((len(X), 0))
 
 st.subheader("Selección de variables")
-st.write(f"Seleccionadas num: {X_num_sel.shape[1]} / {X_num_scaled.shape[1]} | cat: {X_cat_sel.shape[1]} / {X_cat_ohe.shape[1]}")
+st.write(f"Seleccionadas num: {X_num_sel.shape[1]} / {X_num_scaled.shape[1]} | "
+         f"cat: {X_cat_sel.shape[1]} / {X_cat_ohe.shape[1]}")
 
-# Reducción
+# =========================
+# REDUCCIÓN DE DIMENSIONALIDAD
+# =========================
 X_pca, k_pca, evr_pca = pca_reduce(X_num_sel, var_threshold=var_threshold)
 X_mca, k_mca, evr_mca, mca_method = mca_reduce(X_cat_sel, var_threshold=var_threshold)
 
@@ -118,17 +172,23 @@ with col2:
         ax2.set_title("MCA — Varianza acumulada")
         st.pyplot(fig2)
 
-# Resultado
-Z = np.concatenate([X_pca, X_mca], axis=1) if X_mca.size or X_pca.size else np.empty((len(X),0))
+# =========================
+# SALIDA FINAL
+# =========================
+Z = np.concatenate([X_pca, X_mca], axis=1) if X_mca.size or X_pca.size else np.empty((len(X), 0))
 out = pd.DataFrame(Z, index=df.index)
 out[target_col] = y.values
 
 st.subheader("Resultado")
 st.dataframe(out.head(20))
 
-# Guardar/descargar
+# Guardado + descarga
 os.makedirs("outputs", exist_ok=True)
 out_fp = os.path.join("outputs", "dataset_pca_mca_sel.csv")
 out.to_csv(out_fp, index=False)
 st.success(f"Archivo guardado en {out_fp}")
-st.download_button("Descargar CSV procesado", data=out.to_csv(index=False).encode("utf-8"), file_name="dataset_pca_mca_sel.csv", mime="text/csv")
+st.download_button("Descargar CSV procesado",
+                   data=out.to_csv(index=False).encode("utf-8"),
+                   file_name="dataset_pca_mca_sel.csv",
+                   mime="text/csv")
+
