@@ -1,8 +1,9 @@
 from typing import Tuple, List
-import pandas as pd
-import numpy as np
+import pandas as pd, numpy as np
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+# ... (resto igual)
+
 
 def _make_ohe():
     # scikit-learn 1.2+ usa 'sparse_output'; versiones previas usan 'sparse'
