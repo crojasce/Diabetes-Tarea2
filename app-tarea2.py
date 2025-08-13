@@ -4,11 +4,11 @@ import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 
-from src.data_loading import load_diabetic_and_ids
-from src.preprocessing import apply_preprocessor
-from src.feature_selection import select_numeric_features, select_categorical_features
-from src.dimensionality import pca_reduce, mca_reduce
-from src.utils import split_num_cat
+from data_loading import load_diabetic_and_ids
+from preprocessing import apply_preprocessor
+from feature_selection import select_numeric_features, select_categorical_features
+from dimensionality import pca_reduce, mca_reduce
+from utils import split_num_cat
 
 st.set_page_config(page_title="Tarea 2 - Selección + PCA/MCA", layout="wide")
 
