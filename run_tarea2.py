@@ -2,11 +2,13 @@ import os
 import argparse
 import pandas as pd
 import numpy as np
-from src.data_loading import load_diabetic_and_ids
-from src.preprocessing import apply_preprocessor
-from src.feature_selection import select_numeric_features, select_categorical_features
-from src.dimensionality import pca_reduce, mca_reduce
-from src.utils import split_num_cat
+from data_loading import load_diabetic_and_ids
+from preprocessing import apply_preprocessor
+from feature_selection import select_numeric_features, select_categorical_features
+from dimensionality import pca_reduce, mca_reduce
+from utils import split_num_cat
+
+# ... (resto igual; en el ZIP está completo)
 
 def main(args):
     df = load_diabetic_and_ids(args.diabetic, args.ids, left_key=args.merge_left_key, right_key=args.merge_right_key)
