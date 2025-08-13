@@ -1,4 +1,12 @@
 import os
+import sys
+from pathlib import Path
+
+# Garantiza que el dir del archivo esté en sys.path (Streamlit Cloud friendly)
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -9,6 +17,9 @@ from preprocessing import apply_preprocessor
 from feature_selection import select_numeric_features, select_categorical_features
 from dimensionality import pca_reduce, mca_reduce
 from utils import split_num_cat
+
+# ... (resto igual al que ya tienes; en el ZIP está completo)
+
 
 st.set_page_config(page_title="Tarea 2 - Selección + PCA/MCA", layout="wide")
 
