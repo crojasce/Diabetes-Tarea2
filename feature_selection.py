@@ -1,7 +1,9 @@
 from typing import Tuple
 import numpy as np
 from sklearn.feature_selection import f_classif, chi2
-from src.utils import cumulative_k_from_scores
+from utils import cumulative_k_from_scores
+# ... (resto igual)
+
 
 def select_numeric_features(X_num: np.ndarray, y, threshold: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
     if X_num.shape[1] == 0:
